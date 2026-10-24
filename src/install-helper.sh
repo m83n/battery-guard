@@ -2,6 +2,7 @@
 # Runs as root, started by BatteryGuard.app via "do shell script ... with administrator privileges".
 # Usage: install-helper.sh install|uninstall RESOURCES_DIR USER_NAME
 set -e
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
 
 ACTION=$1
 RES=$2
@@ -47,16 +48,27 @@ for f in smcctl battery-guard.sh version; do
     [ -f "$RES/$f" ] || { echo "missing $f" >&2; exit 1; }
 done
 
+# Files here run as root: every directory on the path must be root-owned and not writable
+# by group/others (old Homebrew setups may hand /usr/local to the user).
+for d in /usr /usr/local "$DIR"; do
+    [ -e "$d" ] || continue
+    if [ -L "$d" ] || [ "$(stat -f %u "$d")" != 0 ] || [ -n "$(find "$d" -maxdepth 0 -perm +022)" ]; then
+        echo "$d is not owned by root or is writable by other users, refusing to install" >&2
+        exit 1
+    fi
+done
+
 stop_all
 mkdir -p "$DIR"
 cp -X "$RES/smcctl" "$RES/battery-guard.sh" "$RES/version" "$DIR/"
 xattr -c "$DIR"/* 2>/dev/null || true
+[ -L "$DIR/thresholds" ] && rm -f "$DIR/thresholds"
 [ -f "$DIR/thresholds" ] || printf 'LIMIT=80\nHOT=40\nCOOL=35\n' > "$DIR/thresholds"
-chown -R root:wheel "$DIR"
+chown -R -h root:wheel "$DIR"
 chmod 755 "$DIR" "$DIR/smcctl" "$DIR/battery-guard.sh"
 chmod 644 "$DIR/version"
 # Thresholds are edited from the menu bar app, so the user owns this one file.
-chown "$USER_NAME" "$DIR/thresholds"
+chown -h "$USER_NAME" "$DIR/thresholds"
 chmod 644 "$DIR/thresholds"
 
 cat > "$DAEMON" <<'EOF'

@@ -2,6 +2,7 @@
 # Runs as root every 60 s (launchd). Keeps charge limit at LIMIT %,
 # stops charging while battery is hot (BCLM = gauge %), resumes when cool.
 
+PATH=/usr/bin:/bin:/usr/sbin:/sbin
 SMC=/usr/local/battery-guard/smcctl
 FLAG=/var/run/battery-guard.hot
 CONF=/usr/local/battery-guard/thresholds
