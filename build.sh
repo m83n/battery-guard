@@ -36,13 +36,12 @@ cat > "$APP/Contents/Info.plist" <<EOF
     <string>11.0</string>
     <key>LSUIElement</key>
     <true/>
-    <key>NSAppleEventsUsageDescription</key>
-    <string>BatteryGuard asks for the administrator password to install its service.</string>
 </dict>
 </plist>
 EOF
 
 # Ad-hoc signature: no Apple Developer ID, users confirm the first launch in System Settings.
-codesign --force --deep --sign - "$APP"
+codesign --force --sign - "$APP/Contents/Resources/smcctl"
+codesign --force --sign - "$APP"
 (cd build && ditto -c -k --keepParent BatteryGuard.app "BatteryGuard-$VERSION.zip")
 echo "Built $APP and build/BatteryGuard-$VERSION.zip"

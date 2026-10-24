@@ -38,7 +38,7 @@ fi
 
 # Hot, or macOS already shows LIMIT: hold charge where the gauge is now.
 target=$LIMIT
-if [ -f "$FLAG" ] || [ "$pct" -ge "$LIMIT" ]; then
+if [ -f "$FLAG" ] || { [ "$LIMIT" -lt 100 ] && [ "$pct" -ge "$LIMIT" ]; }; then
     [ "$soc" -lt "$LIMIT" ] && target=$soc
 fi
 

@@ -56,29 +56,40 @@ func alert(_ title: String, _ text: String, _ buttons: [String]) -> NSApplicatio
     return a.runModal()
 }
 
-// Same keys and defaults as battery-guard.sh.
+// Same keys, defaults and validation as battery-guard.sh, so the menu shows what the service uses.
 struct Thresholds {
     var limit = 80, hot = 40, cool = 35
 
     static func read() -> Thresholds {
         var t = Thresholds()
         guard let text = try? String(contentsOfFile: confPath, encoding: .utf8) else { return t }
-        for line in text.split(separator: "\n") {
-            let kv = line.split(separator: "=").map { $0.trimmingCharacters(in: .whitespaces) }
-            guard kv.count == 2, let v = Int(kv[1]) else { continue }
-            switch kv[0] {
-            case "LIMIT": t.limit = v
-            case "HOT": t.hot = v
-            case "COOL": t.cool = v
-            default: break
+        func val(_ key: String, _ lo: Int, _ hi: Int, _ def: Int) -> Int {
+            for line in text.split(separator: "\n") {
+                let kv = line.split(separator: "=", omittingEmptySubsequences: false)  // like awk -F=: field 2
+                guard kv.count >= 2, kv[0] == key else { continue }
+                let s = kv[1].filter { !$0.isWhitespace }
+                guard (1...3).contains(s.count), s.allSatisfy({ $0.isASCII && $0.isNumber }), let v = Int(s) else { return def }
+                return (lo...hi).contains(v) ? v : def
             }
+            return def
         }
+        t.limit = val("LIMIT", 50, 100, 80)
+        t.hot = val("HOT", 30, 60, 40)
+        t.cool = val("COOL", 25, 59, 35)
+        if t.cool >= t.hot { t.cool = t.hot - 5 }
         return t
     }
 
+    // The directory is root-owned, so no temp file + rename: overwrite in place with a
+    // fixed-width text, so the service never reads an empty or truncated file.
     func write() -> Bool {
-        let text = "LIMIT=\(limit)\nHOT=\(hot)\nCOOL=\(cool)\n"
-        return (try? text.write(toFile: confPath, atomically: false, encoding: .utf8)) != nil
+        let text = String(format: "LIMIT=%03d\nHOT=%03d\nCOOL=%03d\n", limit, hot, cool)
+        guard let fh = FileHandle(forWritingAtPath: confPath) else { return false }
+        defer { fh.closeFile() }
+        let data = Data(text.utf8)
+        fh.write(data)
+        fh.truncateFile(atOffset: UInt64(data.count))
+        return true
     }
 }
 
@@ -217,9 +228,10 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationDidFinishLaunching(_ n: Notification) {
-        if let id = Bundle.main.bundleIdentifier, NSRunningApplication.runningApplications(withBundleIdentifier: id).count > 1 {
-            NSApp.terminate(nil)
-            return
+        // A newly launched copy (e.g. an updated app) replaces the one already running.
+        if let id = Bundle.main.bundleIdentifier {
+            for other in NSRunningApplication.runningApplications(withBundleIdentifier: id)
+            where other.processIdentifier != getpid() { other.terminate() }
         }
         menu.delegate = self
         item.menu = menu

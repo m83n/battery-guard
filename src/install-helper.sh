@@ -18,9 +18,20 @@ OLD_AGENT=/Library/LaunchAgents/com.local.battery-guard-menu.plist
 USER_ID=$(id -u "$USER_NAME") || { echo "unknown user" >&2; exit 1; }
 GUI=gui/$USER_ID
 
+# bootout is asynchronous: wait (up to 5 s) until the job is gone before bootstrapping again.
+bootout_wait() {
+    launchctl bootout "$1/$2" 2>/dev/null || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        launchctl print "$1/$2" >/dev/null 2>&1 || return 0
+        sleep 0.5
+    done
+}
+
 stop_all() {
-    for p in "$AGENT" "$OLD_AGENT"; do launchctl bootout "$GUI" "$p" 2>/dev/null || true; done
-    for p in "$DAEMON" "$OLD_DAEMON"; do launchctl bootout system "$p" 2>/dev/null || true; done
+    bootout_wait "$GUI" local.batteryguard.menu
+    bootout_wait "$GUI" com.local.battery-guard-menu
+    bootout_wait system local.batteryguard.daemon
+    bootout_wait system com.local.battery-guard
     rm -f "$OLD_DAEMON" "$OLD_AGENT" "$DIR/BatteryGuardMenu"
 }
 
@@ -38,7 +49,8 @@ done
 
 stop_all
 mkdir -p "$DIR"
-cp "$RES/smcctl" "$RES/battery-guard.sh" "$RES/version" "$DIR/"
+cp -X "$RES/smcctl" "$RES/battery-guard.sh" "$RES/version" "$DIR/"
+xattr -c "$DIR"/* 2>/dev/null || true
 [ -f "$DIR/thresholds" ] || printf 'LIMIT=80\nHOT=40\nCOOL=35\n' > "$DIR/thresholds"
 chown -R root:wheel "$DIR"
 chmod 755 "$DIR" "$DIR/smcctl" "$DIR/battery-guard.sh"

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 typedef struct { char major, minor, build, reserved; UInt16 release; } Vers;
 typedef struct { UInt16 version, length; UInt32 cpu, gpu, mem; } PLimit;
@@ -35,6 +36,7 @@ int main(int argc, char **argv) {
     in.data8 = CMD_INFO;
     if (call(&in, &out)) { fprintf(stderr, "key %s not found\n", k); return 1; }
     UInt32 size = out.keyInfo.dataSize;
+    if (size == 0 || size > sizeof(in.bytes)) { fprintf(stderr, "unsupported key size %u\n", size); return 1; }
 
     if (argc == 2) {
         in.keyInfo.dataSize = size;
@@ -48,6 +50,7 @@ int main(int argc, char **argv) {
 
     const char *hex = argv[2];
     if (strlen(hex) != size * 2) { fprintf(stderr, "need %u bytes\n", size); return 2; }
+    for (UInt32 i = 0; i < size * 2; i++) if (!isxdigit((unsigned char)hex[i])) { fprintf(stderr, "bad hex\n"); return 2; }
     for (UInt32 i = 0; i < size; i++) { char b[3] = {hex[2*i], hex[2*i+1], 0}; in.bytes[i] = (unsigned char)strtoul(b, NULL, 16); }
     in.keyInfo.dataSize = size;
     in.data8 = CMD_WRITE;
