@@ -7,7 +7,10 @@ let smcPath = installDir + "/smcctl"
 let hotFlag = "/var/run/battery-guard.hot"
 let confPath = installDir + "/thresholds"
 let resDir = Bundle.main.resourcePath ?? ""
-let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+// Hash of the service files bundled in the app (see build.sh), not the app version:
+// the service is reinstalled only when those files change. nil in a bundle without it.
+let serviceVersion = (try? String(contentsOfFile: resDir + "/version", encoding: .utf8))?
+    .trimmingCharacters(in: .whitespacesAndNewlines)
 
 func run(_ path: String, _ args: [String]) -> (Int32, String) {
     let p = Process()
@@ -240,10 +243,10 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DispatchQueue.main.async { self.offerInstall() }
     }
 
-    // On first launch or after an app update: install or update the service.
+    // On first launch, or when the bundled service files differ from the installed ones.
     func offerInstall() {
         let installed = Service.installedVersion
-        if installed == appVersion { return }
+        guard let bundled = serviceVersion, installed != bundled else { return }
         guard Service.supported else {
             _ = alert("Этот Mac не поддерживается",
                       "В контроллере питания нет ключа BCLM, через который BatteryGuard ограничивает заряд. "
@@ -251,7 +254,7 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSApp.terminate(nil)
             return
         }
-        let title = installed == nil ? "Установить службу BatteryGuard?" : "Обновить службу BatteryGuard до версии \(appVersion)?"
+        let title = installed == nil ? "Установить службу BatteryGuard?" : "Обновить службу BatteryGuard?"
         let r = alert(title, "Служба раз в минуту проверяет заряд и температуру батареи и управляет зарядкой "
                       + "через контроллер питания. Для установки нужен пароль администратора.", ["Установить", "Позже"])
         if r == .alertFirstButtonReturn { installService() }
@@ -288,6 +291,11 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.button?.image = batteryIcon(percent: s.percent ?? 0, charging: s.charging, plugged: s.onAC, dark: dark)
         }
         item.button?.imagePosition = .imageLeft
+        let chargeText = "Заряд: " + (s.percent.map { "\($0)%" } ?? "нет данных")
+        let tempText = "Температура батареи: " + (s.temp.map { "\($0)°C" } ?? "нет данных")
+        var tip = [chargeText, tempText]
+        if !s.serviceRunning { tip.append("Служба не запущена") } else if s.hot { tip.append("Зарядка на паузе из-за нагрева") }
+        item.button?.toolTip = tip.joined(separator: "\n")
         switch mode {
         case .none: item.button?.title = ""
         case .percent: item.button?.title = s.percent.map { " \($0)%" } ?? ""
@@ -316,8 +324,8 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             "Служба: " + (s.serviceRunning ? "работает" : "не запущена"),
             "Режим: " + (s.hot ? "пауза из-за нагрева" : "обычный"),
             "",
-            "Заряд: " + (s.percent.map { "\($0)%" } ?? "нет данных") + ", " + power,
-            "Температура батареи: " + (s.temp.map { "\($0)°C" } ?? "нет данных"),
+            chargeText + ", " + power,
+            tempText,
             "Лимит в контроллере: " + (s.limit.map { "\($0)%" } ?? "нет данных"),
         ]
         if !s.onAC {
