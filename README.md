@@ -1,3 +1,5 @@
+<img src="docs/icon.png" width="128" alt="BatteryGuard icon">
+
 # BatteryGuard
 
 Ограничение заряда и защита батареи от нагрева для старых MacBook на Intel.
