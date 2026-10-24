@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 
-VERSION=1.1.0
+VERSION=1.2.0
 # Service version = hash of the files installed as root: when any of them changes,
 # installed users are asked to reinstall the service (admin password).
 SERVICE_VERSION=$(cat src/battery-guard.sh src/smcctl.c src/install-helper.sh | shasum -a 256 | cut -c1-12)
@@ -21,6 +21,16 @@ build/check/check
 swiftc -O -target "$TARGET" -o "$APP/Contents/MacOS/BatteryGuard" src/main.swift src/Strings.swift
 cc -O2 -target "$TARGET" -framework IOKit -framework CoreFoundation -o "$APP/Contents/Resources/smcctl" src/smcctl.c
 cp src/battery-guard.sh src/install-helper.sh "$APP/Contents/Resources/"
+
+# App icon: drawn by tools/make_icon.swift, packed into AppIcon.icns.
+mkdir -p build/icon/AppIcon.iconset
+swiftc -target "$TARGET" -o build/icon/make_icon tools/make_icon.swift
+build/icon/make_icon build/icon/icon_1024.png
+for s in 16 32 128 256 512; do
+    sips -z $s $s build/icon/icon_1024.png --out "build/icon/AppIcon.iconset/icon_${s}x${s}.png" >/dev/null
+    sips -z $((s * 2)) $((s * 2)) build/icon/icon_1024.png --out "build/icon/AppIcon.iconset/icon_${s}x${s}@2x.png" >/dev/null
+done
+iconutil -c icns build/icon/AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"
 echo "$SERVICE_VERSION" > "$APP/Contents/Resources/version"
 
 cat > "$APP/Contents/Info.plist" <<EOF
@@ -34,6 +44,8 @@ cat > "$APP/Contents/Info.plist" <<EOF
     <string>BatteryGuard</string>
     <key>CFBundleExecutable</key>
     <string>BatteryGuard</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>

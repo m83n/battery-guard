@@ -306,6 +306,7 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         else { power = L(.acNotCharging) }
 
         menu.removeAllItems()
+        menu.userInterfaceLayoutDirection = Lang.current.isRTL ? .rightToLeft : .leftToRight
         guard Service.installedVersion != nil else {
             menu.addItem(infoItem(L(.service) + ": " + L(.notInstalled)))
             let inst = NSMenuItem(title: L(.installService), action: #selector(installService), keyEquivalent: "")
@@ -338,7 +339,7 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(submenu(L(.resumeBelow) + ": \(t.cool)°C", [30, 32, 35, 38, 40], t.cool, "°C", tag: 2) { $0 < t.hot })
 
         let show = NSMenuItem(title: L(.showNext), action: nil, keyEquivalent: "")
-        show.submenu = NSMenu()
+        show.submenu = subMenu()
         for m in TitleMode.allCases {
             let mi = NSMenuItem(title: m.label, action: #selector(pickMode(_:)), keyEquivalent: "")
             mi.target = self
@@ -347,9 +348,9 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             show.submenu?.addItem(mi)
         }
         menu.addItem(show)
-        menu.addItem(languageMenu())
 
         menu.addItem(.separator())
+        menu.addItem(languageMenu())
         for (title, sel) in [(L(.reinstall), #selector(installService)), (L(.removeService), #selector(uninstallService))] {
             let mi = NSMenuItem(title: title, action: sel, keyEquivalent: "")
             mi.target = self
@@ -362,7 +363,7 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // tag: 0 limit, 1 hot, 2 cool. Values failing `allowed` are shown disabled.
     func submenu(_ title: String, _ values: [Int], _ current: Int, _ unit: String, tag: Int, allowed: (Int) -> Bool) -> NSMenuItem {
         let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        parent.submenu = NSMenu()
+        parent.submenu = subMenu()
         parent.submenu?.autoenablesItems = false
         for v in values {
             let mi = NSMenuItem(title: "\(v)\(unit)", action: #selector(pickThreshold(_:)), keyEquivalent: "")
@@ -392,11 +393,18 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         refresh()
     }
 
+    // Submenus follow the text direction of the chosen language (Hebrew is right-to-left).
+    func subMenu() -> NSMenu {
+        let m = NSMenu()
+        m.userInterfaceLayoutDirection = menu.userInterfaceLayoutDirection
+        return m
+    }
+
     // "Language" is kept in the title so a user who picked an unfamiliar language can find the way back.
     func languageMenu() -> NSMenuItem {
         let parent = NSMenuItem(title: L(.language) + (Lang.current == .en ? "" : " (Language)"), action: nil, keyEquivalent: "")
-        parent.submenu = NSMenu()
-        let options: [(String, String?)] = [(L(.systemLanguage), nil)] + Lang.allCases.map { ($0.nativeName, $0.rawValue) }
+        parent.submenu = subMenu()
+        let options: [(String, String?)] = [(L(.systemLanguage), nil)] + Lang.sorted.map { ($0.nativeName, $0.rawValue) }
         for (i, (title, code)) in options.enumerated() {
             let mi = NSMenuItem(title: title, action: #selector(pickLanguage(_:)), keyEquivalent: "")
             mi.target = self

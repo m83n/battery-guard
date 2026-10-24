@@ -12,7 +12,7 @@
 - Значок в строке меню: шкала заряда, зеленая молния при зарядке, вилка при питании от сети без зарядки, желтый и красный цвет при низком заряде.
 - Рядом со значком на выбор: процент заряда, температура, время работы от батареи или ничего.
 - Пороги меняются прямо из меню значка.
-- Интерфейс на 12 языках: русский, английский, испанский, португальский, французский, немецкий, итальянский, турецкий, украинский, китайский, японский, корейский. По умолчанию язык системы.
+- Интерфейс на 23 языках: азербайджанский, английский, армянский, белорусский, грузинский, иврит, испанский, итальянский, казахский, киргизский, китайский, корейский, немецкий, португальский, румынский, русский, таджикский, туркменский, турецкий, узбекский, украинский, французский, японский. По умолчанию язык системы.
 
 ## Какие Mac поддерживаются
 
@@ -68,7 +68,7 @@ BatteryGuard limits battery charge (70-100%, default 80%) and pauses charging wh
 
 Install: download the zip from Releases, move `BatteryGuard.app` to Applications, open it, confirm "Open Anyway" in System Settings > Privacy & Security (the app is not notarized), then allow the service install with your admin password. Uninstall from the menu ("Удалить службу").
 
-Requires macOS 11+, Intel. Tested on MacBook Pro 11,3 (2013) with macOS 14 via OpenCore Legacy Patcher. The UI is available in 12 languages (menu "Language"). Use at your own risk.
+Requires macOS 11+, Intel. Tested on MacBook Pro 11,3 (2013) with macOS 14 via OpenCore Legacy Patcher. The UI is available in 23 languages (menu "Language"), including all CIS languages and Hebrew. Use at your own risk.
 
 ## License
 

@@ -2,14 +2,15 @@
 
 Menu bar app + root service that limits charge and pauses charging when hot, for Intel MacBooks with SMC key `BCLM`.
 
-- `src/main.swift`: menu bar app (UI strings in `src/Strings.swift`, 12 languages); installs/removes the service via `install-helper.sh` with admin password (AppleScript).
+- `src/main.swift`: menu bar app (UI strings in `src/Strings.swift`, 23 languages); installs/removes the service via `install-helper.sh` with admin password (AppleScript).
 - `src/battery-guard.sh`: service logic, runs as root every 60 s.
 - `src/install-helper.sh`: root installer; also removes the old manual install (`com.local.battery-guard*`).
 - `src/smcctl.c`: minimal SMC key read/write.
+- `tools/make_icon.swift`: draws the app icon; build.sh turns it into AppIcon.icns.
 - Build: `./build.sh` (x86_64, macOS 11+, ad-hoc signed). Bump `VERSION` in build.sh on every release; `SERVICE_VERSION` is a hash of the service sources, so any change there makes the app ask to reinstall the service.
 
 Rules:
-- UI strings live in src/Strings.swift (ru + 11 languages, add every new string in all of them); no typographic symbols (dashes, arrows, ellipsis) except the degree sign.
+- UI strings live in src/Strings.swift (23 languages, one block each; add every new string to all of them, build.sh fails otherwise); no typographic symbols (dashes, arrows, ellipsis) except the degree sign.
 - The thresholds file is user-writable and read by root: keep strict integer and range validation.
 - SMC charge (StateOfCharge) reads 3-4% lower than macOS percent; see battery-guard.sh.
 - Do not run downloaded third-party binaries; tools here are written from scratch.
