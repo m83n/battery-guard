@@ -41,12 +41,12 @@ enum Service {
         }
         let src = "do shell script \"/bin/bash \" & quoted form of \(lit(resDir + "/install-helper.sh"))"
             + " & \" \(action) \" & quoted form of \(lit(resDir)) & \" \" & quoted form of \(lit(NSUserName()))"
-            + " with prompt \"BatteryGuard: управление службой контроля заряда.\" with administrator privileges"
+            + " with prompt \(lit(L(.prompt))) with administrator privileges"
         var err: NSDictionary?
         NSAppleScript(source: src)?.executeAndReturnError(&err)
         guard let e = err else { return nil }
         if (e[NSAppleScript.errorNumber] as? Int) == -128 { return nil }
-        return e[NSAppleScript.errorMessage] as? String ?? "неизвестная ошибка"
+        return e[NSAppleScript.errorMessage] as? String ?? L(.unknownError)
     }
 }
 
@@ -213,10 +213,10 @@ enum TitleMode: String, CaseIterable {
     case none, percent, temp, time
     var label: String {
         switch self {
-        case .none: return "Только значок"
-        case .percent: return "Заряд, %"
-        case .temp: return "Температура"
-        case .time: return "Время работы от батареи"
+        case .none: return L(.modeNone)
+        case .percent: return L(.modePercent)
+        case .temp: return L(.modeTemp)
+        case .time: return L(.modeTime)
         }
     }
 }
@@ -248,29 +248,24 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let installed = Service.installedVersion
         guard let bundled = serviceVersion, installed != bundled else { return }
         guard Service.supported else {
-            _ = alert("Этот Mac не поддерживается",
-                      "В контроллере питания нет ключа BCLM, через который BatteryGuard ограничивает заряд. "
-                      + "Приложение рассчитано на MacBook на процессорах Intel.", ["Закрыть"])
+            _ = alert(L(.unsupportedTitle), L(.unsupportedText), [L(.ok)])
             NSApp.terminate(nil)
             return
         }
-        let title = installed == nil ? "Установить службу BatteryGuard?" : "Обновить службу BatteryGuard?"
-        let r = alert(title, "Служба раз в минуту проверяет заряд и температуру батареи и управляет зарядкой "
-                      + "через контроллер питания. Для установки нужен пароль администратора.", ["Установить", "Позже"])
+        let title = installed == nil ? L(.installTitle) : L(.updateTitle)
+        let r = alert(title, L(.installText), [L(.installButton), L(.later)])
         if r == .alertFirstButtonReturn { installService() }
     }
 
     @objc func installService() {
-        if let e = Service.runPrivileged("install") { _ = alert("Не удалось установить службу", e, ["OK"]) }
+        if let e = Service.runPrivileged("install") { _ = alert(L(.installFailed), e, [L(.ok)]) }
         refresh()
     }
 
     @objc func uninstallService() {
-        let r = alert("Удалить службу BatteryGuard?",
-                      "Лимит заряда вернется к 100%, защита от нагрева отключится. Само приложение можно затем удалить из папки Программы.",
-                      ["Удалить", "Отмена"])
+        let r = alert(L(.uninstallTitle), L(.uninstallText), [L(.uninstallButton), L(.cancel)])
         guard r == .alertFirstButtonReturn else { return }
-        if let e = Service.runPrivileged("uninstall") { _ = alert("Не удалось удалить службу", e, ["OK"]) }
+        if let e = Service.runPrivileged("uninstall") { _ = alert(L(.uninstallFailed), e, [L(.ok)]) }
         refresh()
     }
 
@@ -291,10 +286,10 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.button?.image = batteryIcon(percent: s.percent ?? 0, charging: s.charging, plugged: s.onAC, dark: dark)
         }
         item.button?.imagePosition = .imageLeft
-        let chargeText = "Заряд: " + (s.percent.map { "\($0)%" } ?? "нет данных")
-        let tempText = "Температура батареи: " + (s.temp.map { "\($0)°C" } ?? "нет данных")
+        let chargeText = L(.charge) + ": " + (s.percent.map { "\($0)%" } ?? L(.noData))
+        let tempText = L(.batteryTemp) + ": " + (s.temp.map { "\($0)°C" } ?? L(.noData))
         var tip = [chargeText, tempText]
-        if !s.serviceRunning { tip.append("Служба не запущена") } else if s.hot { tip.append("Зарядка на паузе из-за нагрева") }
+        if !s.serviceRunning { tip.append(L(.tipNotRunning)) } else if s.hot { tip.append(L(.tipPaused)) }
         item.button?.toolTip = tip.joined(separator: "\n")
         switch mode {
         case .none: item.button?.title = ""
@@ -306,30 +301,31 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         let power: String
-        if !s.onAC { power = "работа от батареи" }
-        else if s.charging { power = "от сети, идет зарядка" }
-        else { power = "от сети, зарядка остановлена" }
+        if !s.onAC { power = L(.onBattery) }
+        else if s.charging { power = L(.acCharging) }
+        else { power = L(.acNotCharging) }
 
         menu.removeAllItems()
         guard Service.installedVersion != nil else {
-            menu.addItem(infoItem("Служба: не установлена"))
-            let inst = NSMenuItem(title: "Установить службу", action: #selector(installService), keyEquivalent: "")
+            menu.addItem(infoItem(L(.service) + ": " + L(.notInstalled)))
+            let inst = NSMenuItem(title: L(.installService), action: #selector(installService), keyEquivalent: "")
             inst.target = self
             menu.addItem(inst)
             menu.addItem(.separator())
-            menu.addItem(NSMenuItem(title: "Закрыть", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+            menu.addItem(languageMenu())
+            menu.addItem(NSMenuItem(title: L(.quit), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
             return
         }
         var lines = [
-            "Служба: " + (s.serviceRunning ? "работает" : "не запущена"),
-            "Режим: " + (s.hot ? "пауза из-за нагрева" : "обычный"),
+            L(.service) + ": " + (s.serviceRunning ? L(.running) : L(.notRunning)),
+            L(.mode) + ": " + (s.hot ? L(.modeHeat) : L(.modeNormal)),
             "",
             chargeText + ", " + power,
             tempText,
-            "Лимит в контроллере: " + (s.limit.map { "\($0)%" } ?? "нет данных"),
+            L(.controllerLimit) + ": " + (s.limit.map { "\($0)%" } ?? L(.noData)),
         ]
         if !s.onAC {
-            lines.append("Работы от батареи: " + (lastMinutes.map { "\($0 / 60) ч \($0 % 60) мин" } ?? "оценивается"))
+            lines.append(L(.runtime) + ": " + (lastMinutes.map { L(.hoursMinutes, $0 / 60, $0 % 60) } ?? L(.estimating)))
         }
         for line in lines {
             if line.isEmpty { menu.addItem(.separator()); continue }
@@ -337,11 +333,11 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         menu.addItem(.separator())
-        menu.addItem(submenu("Лимит заряда: \(t.limit)%", [70, 75, 80, 85, 90, 95, 100], t.limit, "%", tag: 0) { _ in true })
-        menu.addItem(submenu("Пауза при нагреве от: \(t.hot)°C", [35, 38, 40, 42, 45], t.hot, "°C", tag: 1) { $0 > t.cool })
-        menu.addItem(submenu("Возобновить ниже: \(t.cool)°C", [30, 32, 35, 38, 40], t.cool, "°C", tag: 2) { $0 < t.hot })
+        menu.addItem(submenu(L(.chargeLimit) + ": \(t.limit)%", [70, 75, 80, 85, 90, 95, 100], t.limit, "%", tag: 0) { _ in true })
+        menu.addItem(submenu(L(.pauseAbove) + ": \(t.hot)°C", [35, 38, 40, 42, 45], t.hot, "°C", tag: 1) { $0 > t.cool })
+        menu.addItem(submenu(L(.resumeBelow) + ": \(t.cool)°C", [30, 32, 35, 38, 40], t.cool, "°C", tag: 2) { $0 < t.hot })
 
-        let show = NSMenuItem(title: "Показывать рядом со значком", action: nil, keyEquivalent: "")
+        let show = NSMenuItem(title: L(.showNext), action: nil, keyEquivalent: "")
         show.submenu = NSMenu()
         for m in TitleMode.allCases {
             let mi = NSMenuItem(title: m.label, action: #selector(pickMode(_:)), keyEquivalent: "")
@@ -351,15 +347,16 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
             show.submenu?.addItem(mi)
         }
         menu.addItem(show)
+        menu.addItem(languageMenu())
 
         menu.addItem(.separator())
-        for (title, sel) in [("Переустановить службу", #selector(installService)), ("Удалить службу", #selector(uninstallService))] {
+        for (title, sel) in [(L(.reinstall), #selector(installService)), (L(.removeService), #selector(uninstallService))] {
             let mi = NSMenuItem(title: title, action: sel, keyEquivalent: "")
             mi.target = self
             menu.addItem(mi)
         }
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Закрыть", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: L(.quit), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
     // tag: 0 limit, 1 hot, 2 cool. Values failing `allowed` are shown disabled.
@@ -388,10 +385,31 @@ class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         if !t.write() {
             let a = NSAlert()
-            a.messageText = "Не удалось сохранить пороги"
-            a.informativeText = "Нет доступа к файлу \(confPath). Переустановите службу через меню BatteryGuard."
+            a.messageText = L(.saveFailed)
+            a.informativeText = L(.saveFailedText, confPath)
             a.runModal()
         }
+        refresh()
+    }
+
+    // "Language" is kept in the title so a user who picked an unfamiliar language can find the way back.
+    func languageMenu() -> NSMenuItem {
+        let parent = NSMenuItem(title: L(.language) + (Lang.current == .en ? "" : " (Language)"), action: nil, keyEquivalent: "")
+        parent.submenu = NSMenu()
+        let options: [(String, String?)] = [(L(.systemLanguage), nil)] + Lang.allCases.map { ($0.nativeName, $0.rawValue) }
+        for (i, (title, code)) in options.enumerated() {
+            let mi = NSMenuItem(title: title, action: #selector(pickLanguage(_:)), keyEquivalent: "")
+            mi.target = self
+            mi.representedObject = code
+            mi.state = Lang.chosen?.rawValue == code ? .on : .off
+            parent.submenu?.addItem(mi)
+            if i == 0 { parent.submenu?.addItem(.separator()) }
+        }
+        return parent
+    }
+
+    @objc func pickLanguage(_ sender: NSMenuItem) {
+        Lang.chosen = (sender.representedObject as? String).flatMap(Lang.init(rawValue:))
         refresh()
     }
 

@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 
-VERSION=1.0.1
+VERSION=1.1.0
 # Service version = hash of the files installed as root: when any of them changes,
 # installed users are asked to reinstall the service (admin password).
 SERVICE_VERSION=$(cat src/battery-guard.sh src/smcctl.c src/install-helper.sh | shasum -a 256 | cut -c1-12)
@@ -13,7 +13,12 @@ TARGET=x86_64-apple-macos11.0
 rm -rf build
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-swiftc -O -target "$TARGET" -o "$APP/Contents/MacOS/BatteryGuard" src/BatteryGuard.swift
+# Translation table check: every key has all languages and the same format specifiers.
+mkdir -p build/check && cp tests/check_strings.swift build/check/main.swift
+swiftc -target "$TARGET" -o build/check/check build/check/main.swift src/Strings.swift
+build/check/check
+
+swiftc -O -target "$TARGET" -o "$APP/Contents/MacOS/BatteryGuard" src/main.swift src/Strings.swift
 cc -O2 -target "$TARGET" -framework IOKit -framework CoreFoundation -o "$APP/Contents/Resources/smcctl" src/smcctl.c
 cp src/battery-guard.sh src/install-helper.sh "$APP/Contents/Resources/"
 echo "$SERVICE_VERSION" > "$APP/Contents/Resources/version"
